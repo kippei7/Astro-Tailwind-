@@ -1,0 +1,42 @@
+# Mac向け — 立花証券 e支店 API
+# まずはデモURLのまま dry_run で動作確認してください。
+
+mode: dry_run          # alert | dry_run | paper | live
+broker: eshiten        # eshiten | yfinance | mock
+
+account: specific      # specific | general | nisa
+
+notify:
+  macos: true
+  webhook_url: null
+
+risk:
+  max_order_quantity: 100
+  max_position_quantity: 1000
+  max_notional_yen: 300000
+  max_orders_per_day: 20
+  allow_short: false
+
+strategy:
+  name: ma_cross
+  symbol: "7203.T"
+  quantity: 100
+  short_window: 5
+  long_window: 25
+  poll_interval_sec: 60.0
+
+eshiten:
+  # デモ: https://demo-kabuka.e-shiten.jp/e_api_v4r9/
+  # 本番: https://kabuka.e-shiten.jp/e_api_v4r9/
+  base_url: "https://demo-kabuka.e-shiten.jp/e_api_v4r9/"
+  json_ofmt: "5"
+  auth_dir: secrets
+  auth_id_file: e_api_authid.txt
+  private_key_file: e_api_private_key.pem
+  second_password_file: file_pwd2.txt
+  session_file: secrets/session.json
+  p_no_file: secrets/p_no.json
+  market_code: "00"
+  timeout_sec: 15.0
+
+log_dir: logs
