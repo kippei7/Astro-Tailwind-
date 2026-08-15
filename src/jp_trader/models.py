@@ -11,8 +11,7 @@ class Side(str, Enum):
     SELL = "sell"
     BUY = "buy"
 
-    def rss_code(self) -> str:
-        # MarketSpeed II RSS: 1=売, 3=買
+    def eshiten_code(self) -> str:
         return "1" if self is Side.SELL else "3"
 
 
@@ -20,25 +19,11 @@ class OrderType(str, Enum):
     MARKET = "market"
     LIMIT = "limit"
 
-    def rss_price_kbn(self) -> str:
-        # 0=成行, 1=指値
-        return "0" if self is OrderType.MARKET else "1"
-
 
 class AccountType(str, Enum):
-    SPECIFIC = "specific"  # 特定
-    GENERAL = "general"  # 一般
-    NISA_GROWTH = "nisa_growth"
-    NISA_TSUMITATE = "nisa_tsumitate"
-
-    def rss_code(self) -> str:
-        mapping = {
-            AccountType.SPECIFIC: "0",
-            AccountType.GENERAL: "1",
-            AccountType.NISA_GROWTH: "2",
-            AccountType.NISA_TSUMITATE: "3",
-        }
-        return mapping[self]
+    SPECIFIC = "specific"
+    GENERAL = "general"
+    NISA = "nisa"
 
 
 class OrderStatus(str, Enum):
@@ -66,8 +51,6 @@ class OrderRequest(BaseModel):
     order_type: OrderType = OrderType.MARKET
     limit_price: Optional[float] = Field(default=None, gt=0)
     account: AccountType = AccountType.SPECIFIC
-    # RSS 用ユニーク発注ID。未指定ならブローカー側で採番
-    order_id: Optional[int] = Field(default=None, ge=1)
     note: str = ""
 
     def validate_for_submit(self) -> None:
@@ -76,6 +59,9 @@ class OrderRequest(BaseModel):
         if self.order_type is OrderType.MARKET and self.limit_price is not None:
             raise ValueError("成行注文に limit_price は指定できません")
 
+    def issue_code(self) -> str:
+        return normalize_issue_code(self.symbol)
+
 
 class OrderResult(BaseModel):
     request: OrderRequest
@@ -83,17 +69,14 @@ class OrderResult(BaseModel):
     broker_message: str = ""
     filled_price: Optional[float] = None
     submitted_at: datetime = Field(default_factory=datetime.now)
-    rss_order_id: Optional[int] = None
+    broker_order_id: Optional[str] = None
+    business_day: Optional[str] = None
 
 
 class Position(BaseModel):
     symbol: str
     quantity: int
     average_price: float
-
-    @property
-    def market_value(self) -> float:
-        return self.quantity * self.average_price
 
 
 class Signal(str, Enum):
@@ -106,3 +89,11 @@ class Bar(BaseModel):
     symbol: str
     price: float
     timestamp: datetime = Field(default_factory=datetime.now)
+
+
+def normalize_issue_code(symbol: str) -> str:
+    """7203.T / 7203 -> 7203"""
+    s = symbol.strip().upper()
+    if "." in s:
+        s = s.split(".", 1)[0]
+    return s

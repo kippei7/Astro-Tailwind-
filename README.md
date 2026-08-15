@@ -1,87 +1,74 @@
-# 楽天証券 自動売買アシスト（Mac対応）
+# 日本株自動売買アシスト（Mac + 立花証券 e支店 API）
 
-MacBook だけで使える範囲に絞ったツールです。
+MacBook だけで **公式APIによる日本株の自動売買** を行うための CLI です。
 
-## 結論（重要）
+## なぜ立花証券か
 
-**Mac単体では楽天証券への自動発注はできません。**
+| 証券会社 | Mac単体で自動発注 | 備考 |
+|---------|------------------|------|
+| **立花証券 e支店 API** | **○** | OS非依存の公式REST。本ツールの対象 |
+| 三菱UFJ eスマート（kabuステーションAPI） | × | Windows上でkabuステーション常駐が必要 |
+| 楽天証券（MarketSpeed II RSS） | × | Windows + Excel 必須 |
 
-| 手段 | Mac | 内容 |
-|------|-----|------|
-| MarketSpeed II RSS | ×（Windows専用） | Excel経由の自動発注 |
-| MARKETSPEED for Mac | ○ | 手動売買アプリ（APIなし） |
-| 個人向け公式REST発注API | × | 現状なし |
+公式案内: https://www.e-shiten.jp/api/
 
-このツールが Mac でできること:
-
-1. **株価監視**（yfinance）
-2. **売買シグナル判定**（移動平均クロスなど）
-3. **macOS通知 / Webhook** で手動発注を促す
-4. **ペーパートレード**（仮想約定で戦略検証）
-
-実口座への自動発注が必要なら、Windows（Parallels等）上の MarketSpeed II RSS が別途必要です。
-
-## セットアップ（Mac）
+## セットアップ
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 cp config.example.yaml config.yaml
-rakuten-trader init-config --force   # または上の cp
 ```
+
+### 口座・API鍵（デモ推奨）
+
+1. [e支店](https://www.e-shiten.jp/) で口座開設（デモ環境あり）
+2. 標準Web → お客様情報 → **e支店・API利用設定** を有効化
+3. `e_api_authid.txt` と `e_api_private_key.pem` を `secrets/` へ配置
+4. `secrets/file_pwd2.txt` に第二パスワードを記載（`chmod 600 secrets/*`）
+
+詳細は `secrets/README.md`。
 
 ## 使い方
 
 ```bash
-# 現在値（例: トヨタ）
-rakuten-trader quote 7203.T
+# ログイン（仮想URL=1日券を取得）
+jp-trader login
 
-# シグナル監視 → 通知のみ（推奨スタート）
-rakuten-trader run -n 30
+# 時価
+jp-trader quote 7203.T
 
-# 手動発注案内（通知だけ）
-rakuten-trader order buy 7203.T 100
+# 保有照会
+jp-trader positions
 
-# ペーパー（仮想約定）
-# config.yaml で mode: paper にしてから
-rakuten-trader run -n 50
+# 手動注文（既定 dry_run = 実発注しない）
+jp-trader order buy 7203.T 100
+
+# 戦略ループ（移動平均クロス）
+jp-trader run -n 30
 ```
 
-通知は macOS 通知センターに出ます。Slack 等へ飛ばす場合は:
+### 実発注（本番）
 
-```yaml
-notify:
-  macos: true
-  webhook_url: "https://hooks.slack.com/services/..."
-```
+1. `config.yaml` の `eshiten.base_url` を本番URLへ
+2. `mode: live`
+3. `JP_TRADER_CONFIRM_LIVE=1 jp-trader order buy 7203.T 100`
 
-または `RAKUTEN_TRADER_WEBHOOK_URL=...`
+**約定は取消できません。必ずデモ環境で動作確認してください。**
 
-## 動作モード
+## モード
 
-| mode | 意味 |
+| mode | 動作 |
 |------|------|
-| `alert` | シグナルを通知するだけ（**Mac推奨**） |
-| `dry_run` | 注文オブジェクトは作るが発注しない |
-| `paper` | yfinance/mock 価格で仮想約定 |
-| `live` | Windows + `broker: rss` のみ（要 `RAKUTEN_TRADER_CONFIRM_LIVE=1`） |
-
-## 実自動発注したい場合（参考）
-
-1. Parallels / VMware 等で Windows を用意
-2. MarketSpeed II + Excel + RSS を設定
-3. `excel/RssBridge.bas` を xlsm に取り込み
-4. `mode: live` / `broker: rss` に切り替え
-
-楽天以外で Mac から本格API自動売買するなら、公式REST APIがある証券会社（例: 三菱UFJ eスマート証券の kabuステーションAPI ※ツール自体はWindows側常駐が必要な場合あり）の検討も現実的です。
+| `alert` | シグナル通知のみ |
+| `dry_run` | ログイン・時価は可。発注は送らない（推奨初期値） |
+| `paper` | yfinance/mock で仮想約定 |
+| `live` | e支店へ実発注（要確認フラグ） |
 
 ## 免責
 
-- 投資・売買は自己責任です
-- 本ツールは学習・検証用のアシストであり、利益を保証しません
-- 証券会社の利用規約・法令を守ってください
-- yfinance の価格は楽天の取引画面と一致しない場合があります
+投資判断・損益は自己責任です。証券会社の規約・法令を守って利用してください。
 
 ## 開発
 

@@ -2,13 +2,11 @@ from __future__ import annotations
 
 from collections import deque
 
-from rakuten_trader.models import Bar, Signal
-from rakuten_trader.strategies import Strategy
+from jp_trader.models import Bar, Signal
+from jp_trader.strategies import Strategy
 
 
 class MovingAverageCrossStrategy(Strategy):
-    """短期/長期移動平均のクロスで売買シグナルを出すシンプル戦略."""
-
     name = "ma_cross"
 
     def __init__(self, short_window: int = 5, long_window: int = 25) -> None:
@@ -29,17 +27,13 @@ class MovingAverageCrossStrategy(Strategy):
         self._prices.append(bar.price)
         if len(self._prices) < self.long_window:
             return Signal.HOLD
-
         prices = list(self._prices)
         short_ma = sum(prices[-self.short_window :]) / self.short_window
         long_ma = sum(prices) / self.long_window
-
         if not self._warmed:
-            # 初回はクロス判定せず状態だけ覚える
             self._warmed = True
             self._last_signal = Signal.BUY if short_ma >= long_ma else Signal.SELL
             return Signal.HOLD
-
         if short_ma > long_ma and self._last_signal != Signal.BUY:
             self._last_signal = Signal.BUY
             return Signal.BUY

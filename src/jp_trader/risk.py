@@ -3,12 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
-from rakuten_trader.config import RiskConfig
-from rakuten_trader.models import OrderRequest, Position, Side
+from jp_trader.config import RiskConfig
+from jp_trader.models import OrderRequest, Position, Side
 
 
 class RiskViolation(Exception):
-    """リスク制限に抵触したときに送出する."""
+    pass
 
 
 @dataclass
@@ -31,17 +31,14 @@ class RiskGuard:
         position: Position | None,
     ) -> None:
         self._roll_day()
-
         if order.quantity > self.config.max_order_quantity:
             raise RiskViolation(
                 f"1注文数量上限超過: {order.quantity} > {self.config.max_order_quantity}"
             )
-
         if self.orders_today >= self.config.max_orders_per_day:
             raise RiskViolation(
                 f"1日注文回数上限超過: {self.orders_today} >= {self.config.max_orders_per_day}"
             )
-
         price = order.limit_price if order.limit_price is not None else last_price
         if price is not None:
             notional = price * order.quantity
@@ -49,7 +46,6 @@ class RiskGuard:
                 raise RiskViolation(
                     f"想定約定金額上限超過: {notional:.0f} > {self.config.max_notional_yen:.0f}"
                 )
-
         current_qty = position.quantity if position else 0
         if order.side is Side.BUY:
             new_qty = current_qty + order.quantity

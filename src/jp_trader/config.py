@@ -16,17 +16,23 @@ class RiskConfig(BaseModel):
     allow_short: bool = False
 
 
-class RssConfig(BaseModel):
-    """Windows + MarketSpeed II RSS 用（Mac では未使用）."""
+class EShitenConfig(BaseModel):
+    """立花証券 e支店 API (v4r9) 設定."""
 
-    workbook_path: str = "excel/rss_bridge.xlsm"
-    quote_sheet: str = "Quotes"
-    symbol_column: str = "A"
-    price_column: str = "B"
-    data_start_row: int = 2
-    vba_stock_order: str = "PyStockOrder"
-    vba_next_order_id: str = "PyNextOrderId"
-    visible_excel: bool = True
+    # demo: https://demo-kabuka.e-shiten.jp/e_api_v4r9/
+    # prod:  https://kabuka.e-shiten.jp/e_api_v4r9/
+    base_url: str = "https://demo-kabuka.e-shiten.jp/e_api_v4r9/"
+    json_ofmt: str = "5"
+    auth_dir: str = "secrets"
+    auth_id_file: str = "e_api_authid.txt"
+    private_key_file: str = "e_api_private_key.pem"
+    second_password_file: str = "file_pwd2.txt"
+    # 公式サンプル互換（任意）: Fernet 暗号化 + API_DECRYPT_KEY
+    secure_config_enc: Optional[str] = None
+    session_file: str = "secrets/session.json"
+    p_no_file: str = "secrets/p_no.json"
+    market_code: str = "00"  # 東証
+    timeout_sec: float = 15.0
 
 
 class NotifyConfig(BaseModel):
@@ -35,7 +41,7 @@ class NotifyConfig(BaseModel):
 
 
 class StrategyConfig(BaseModel):
-    name: Literal["ma_cross", "manual"] = "ma_cross"
+    name: Literal["ma_cross"] = "ma_cross"
     symbol: str = "7203.T"
     quantity: int = Field(default=100, gt=0)
     short_window: int = Field(default=5, gt=1)
@@ -52,18 +58,15 @@ class StrategyConfig(BaseModel):
 
 
 class AppConfig(BaseModel):
-    # alert: シグナルを通知のみ（Mac推奨）
-    # dry_run: 注文オブジェクトは作るが発注しない
-    # paper: yfinance/mock で仮想約定
-    # live: Windows RSS 実発注のみ
-    mode: Literal["alert", "dry_run", "paper", "live"] = "alert"
-    # yfinance: Mac向け実価格 / mock: オフライン / rss: Windowsのみ
-    broker: Literal["yfinance", "mock", "rss"] = "yfinance"
+    # alert: 通知のみ / dry_run: APIは叩くが発注しない / paper: 仮想約定
+    # live: e支店へ実発注
+    mode: Literal["alert", "dry_run", "paper", "live"] = "dry_run"
+    broker: Literal["eshiten", "yfinance", "mock"] = "eshiten"
     risk: RiskConfig = Field(default_factory=RiskConfig)
-    rss: RssConfig = Field(default_factory=RssConfig)
+    eshiten: EShitenConfig = Field(default_factory=EShitenConfig)
     notify: NotifyConfig = Field(default_factory=NotifyConfig)
     strategy: StrategyConfig = Field(default_factory=StrategyConfig)
-    account: Literal["specific", "general", "nisa_growth", "nisa_tsumitate"] = "specific"
+    account: Literal["specific", "general", "nisa"] = "specific"
     log_dir: str = "logs"
 
     @property
@@ -72,21 +75,31 @@ class AppConfig(BaseModel):
 
 
 class EnvSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="RAKUTEN_TRADER_", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="JP_TRADER_", extra="ignore")
 
     config_path: Optional[str] = None
     confirm_live: bool = False
     webhook_url: Optional[str] = None
+    eshiten_auth_id: Optional[str] = None
+    eshiten_second_password: Optional[str] = None
+    api_decrypt_key: Optional[str] = None  # Fernet key (also accepts API_DECRYPT_KEY)
 
 
 def load_config(path: str | Path | None = None) -> AppConfig:
     settings = EnvSettings()
+    # Official sample uses API_DECRYPT_KEY without prefix
+    import os
+
+    if not settings.api_decrypt_key:
+        settings.api_decrypt_key = os.environ.get("API_DECRYPT_KEY")
+
     config_path = Path(path or settings.config_path or "config.yaml")
-    if not config_path.exists():
-        cfg = AppConfig()
-    else:
+    if config_path.exists():
         raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
         cfg = AppConfig.model_validate(raw)
+    else:
+        cfg = AppConfig()
+
     if settings.webhook_url:
         cfg.notify.webhook_url = settings.webhook_url
     return cfg

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import itertools
+import random
 from datetime import datetime
 from typing import Iterable, Optional
 
-from rakuten_trader.brokers import Broker
-from rakuten_trader.models import (
+from jp_trader.brokers import Broker
+from jp_trader.models import (
     OrderRequest,
     OrderResult,
     OrderStatus,
@@ -14,77 +16,50 @@ from rakuten_trader.models import (
 )
 
 
-class YFinanceBroker(Broker):
-    """Mac/Linux 向け。yfinance で価格取得し、paper/dry_run で仮想約定する.
+class MockBroker(Broker):
+    name = "mock"
 
-    楽天証券への実発注は行いません（個人向け公式発注APIが無いため）。
-    """
-
-    name = "yfinance"
-
-    def __init__(self, *, dry_run: bool = True) -> None:
-        try:
-            import yfinance as yf  # noqa: F401
-        except ImportError as exc:
-            raise RuntimeError(
-                "yfinance が必要です: pip install 'rakuten-trader[mac]'"
-            ) from exc
+    def __init__(self, *, dry_run: bool = True, seed_prices: dict[str, float] | None = None):
         self.dry_run = dry_run
+        self._prices = dict(seed_prices or {"7203.T": 2800.0, "6758.T": 13000.0})
         self._positions: dict[str, Position] = {}
+        self._order_seq = itertools.count(1)
         self._history: list[OrderResult] = []
-        self._order_seq = 1
+
+    def seed(self, symbol: str, price: float) -> None:
+        self._prices[symbol] = price
 
     def get_quote(self, symbol: str) -> Quote:
-        import math
+        price = self._prices.get(symbol, 1000.0)
+        price = max(1.0, price * (1.0 + random.uniform(-0.001, 0.001)))
+        self._prices[symbol] = price
+        return Quote(symbol=symbol, price=round(price, 1), timestamp=datetime.now())
 
-        import yfinance as yf
-
-        ticker = yf.Ticker(symbol)
-        price: float | None = None
-
-        try:
-            fast = ticker.fast_info
-            raw = fast.get("last_price") if hasattr(fast, "get") else getattr(fast, "last_price", None)
-            if raw is not None:
-                price = float(raw)
-        except Exception:
-            price = None
-
-        if price is None or math.isnan(price):
-            hist = ticker.history(period="5d", interval="1d")
-            if hist.empty:
-                raise RuntimeError(f"yfinance で価格を取得できません: {symbol}")
-            price = float(hist["Close"].iloc[-1])
-
-        return Quote(symbol=symbol, price=round(float(price), 2), timestamp=datetime.now())
     def get_quotes(self, symbols: Iterable[str]) -> list[Quote]:
         return [self.get_quote(s) for s in symbols]
 
     def place_order(self, order: OrderRequest) -> OrderResult:
         order.validate_for_submit()
         quote = self.get_quote(order.symbol)
-        fill = order.limit_price if order.limit_price is not None else quote.price
-        order_id = self._order_seq
-        self._order_seq += 1
-
+        fill = order.limit_price or quote.price
+        oid = str(next(self._order_seq))
         if self.dry_run:
             result = OrderResult(
                 request=order,
                 status=OrderStatus.DRY_RUN,
-                broker_message="dry_run: 楽天へは発注していません（価格参照のみ）",
+                broker_message="dry_run",
                 filled_price=fill,
-                rss_order_id=order_id,
+                broker_order_id=oid,
             )
             self._history.append(result)
             return result
-
         self._apply_fill(order, fill)
         result = OrderResult(
             request=order,
             status=OrderStatus.FILLED,
-            broker_message="paper: yfinance価格で仮想約定（実口座未反映）",
+            broker_message="mock filled",
             filled_price=fill,
-            rss_order_id=order_id,
+            broker_order_id=oid,
         )
         self._history.append(result)
         return result
@@ -104,15 +79,13 @@ class YFinanceBroker(Broker):
                 )
         else:
             if pos is None or pos.quantity < order.quantity:
-                raise ValueError("売数量が保有を超えています（paper）")
+                raise ValueError("売数量超過")
             remain = pos.quantity - order.quantity
             if remain == 0:
                 del self._positions[order.symbol]
             else:
                 self._positions[order.symbol] = Position(
-                    symbol=order.symbol,
-                    quantity=remain,
-                    average_price=pos.average_price,
+                    symbol=order.symbol, quantity=remain, average_price=pos.average_price
                 )
 
     def get_position(self, symbol: str) -> Optional[Position]:

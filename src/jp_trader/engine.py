@@ -7,10 +7,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from rakuten_trader.brokers import Broker
-from rakuten_trader.brokers.mock import MockBroker
-from rakuten_trader.config import AppConfig, EnvSettings
-from rakuten_trader.models import (
+from jp_trader.brokers import Broker
+from jp_trader.brokers.mock import MockBroker
+from jp_trader.config import AppConfig, EnvSettings
+from jp_trader.models import (
     AccountType,
     Bar,
     OrderRequest,
@@ -20,16 +20,10 @@ from rakuten_trader.models import (
     Side,
     Signal,
 )
-from rakuten_trader.notify import (
-    CompositeNotifier,
-    MacNotifier,
-    WebhookNotifier,
-    format_order_message,
-    format_signal_message,
-)
-from rakuten_trader.risk import RiskGuard, RiskViolation
-from rakuten_trader.strategies import Strategy
-from rakuten_trader.strategies.ma_cross import MovingAverageCrossStrategy
+from jp_trader.notify import CompositeNotifier, MacNotifier, WebhookNotifier, format_signal_message
+from jp_trader.risk import RiskGuard, RiskViolation
+from jp_trader.strategies import Strategy
+from jp_trader.strategies.ma_cross import MovingAverageCrossStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -39,16 +33,17 @@ class LiveModeNotConfirmed(RuntimeError):
 
 
 def create_broker(config: AppConfig) -> Broker:
+    dry = config.mode in {"dry_run", "alert"}
     if config.broker == "mock":
-        return MockBroker(dry_run=(config.mode in {"dry_run", "alert"}))
+        return MockBroker(dry_run=dry)
     if config.broker == "yfinance":
-        from rakuten_trader.brokers.yfinance_broker import YFinanceBroker
+        from jp_trader.brokers.yfinance_broker import YFinanceBroker
 
-        return YFinanceBroker(dry_run=(config.mode in {"dry_run", "alert"}))
-    if config.broker == "rss":
-        from rakuten_trader.brokers.rss import RssBroker
+        return YFinanceBroker(dry_run=dry)
+    if config.broker == "eshiten":
+        from jp_trader.brokers.eshiten import EShitenBroker
 
-        return RssBroker(config.rss, dry_run=(config.mode != "live"))
+        return EShitenBroker(config.eshiten, dry_run=(config.mode != "live"))
     raise ValueError(f"未知のブローカー: {config.broker}")
 
 
@@ -61,10 +56,7 @@ def create_strategy(config: AppConfig) -> Strategy:
 
 def create_notifier(config: AppConfig) -> CompositeNotifier:
     return CompositeNotifier(
-        [
-            MacNotifier(enabled=config.notify.macos),
-            WebhookNotifier(url=config.notify.webhook_url),
-        ]
+        [MacNotifier(enabled=config.notify.macos), WebhookNotifier(url=config.notify.webhook_url)]
     )
 
 
@@ -74,13 +66,10 @@ def ensure_live_allowed(config: AppConfig) -> None:
     settings = EnvSettings()
     if not settings.confirm_live:
         raise LiveModeNotConfirmed(
-            "live モードには環境変数 RAKUTEN_TRADER_CONFIRM_LIVE=1 が必要です。"
+            "live モードには JP_TRADER_CONFIRM_LIVE=1 が必要です（実資金発注）。"
         )
-    if config.broker != "rss":
-        raise LiveModeNotConfirmed(
-            "live モードは Windows 上の broker=rss（MarketSpeed II RSS）専用です。"
-            " Mac では mode=alert または paper を使ってください。"
-        )
+    if config.broker != "eshiten":
+        raise LiveModeNotConfirmed("live モードでは broker=eshiten を指定してください。")
 
 
 @dataclass
@@ -100,11 +89,7 @@ class LocalPortfolio:
                 )
             else:
                 total = pos.quantity + order.quantity
-                avg = (
-                    (pos.average_price * pos.quantity + price * order.quantity) / total
-                    if total
-                    else 0.0
-                )
+                avg = (pos.average_price * pos.quantity + price * order.quantity) / total
                 self.positions[order.symbol] = Position(
                     symbol=order.symbol, quantity=total, average_price=avg
                 )
@@ -116,9 +101,7 @@ class LocalPortfolio:
                 del self.positions[order.symbol]
             else:
                 self.positions[order.symbol] = Position(
-                    symbol=order.symbol,
-                    quantity=remain,
-                    average_price=pos.average_price,
+                    symbol=order.symbol, quantity=remain, average_price=pos.average_price
                 )
 
 
@@ -151,10 +134,7 @@ class TradingEngine:
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s %(levelname)s %(message)s",
-            handlers=[
-                logging.StreamHandler(),
-                logging.FileHandler(log_file, encoding="utf-8"),
-            ],
+            handlers=[logging.StreamHandler(), logging.FileHandler(log_file, encoding="utf-8")],
             force=True,
         )
 
@@ -175,7 +155,6 @@ class TradingEngine:
             pos = self.portfolio.get(symbol) or self.broker.get_position(symbol)
             sell_qty = min(qty, pos.quantity) if pos else qty
             if self.config.mode == "alert" and (pos is None or pos.quantity <= 0):
-                # アラートモードでは保有不明でも売りシグナルを案内する
                 sell_qty = qty
             if sell_qty <= 0:
                 return None
@@ -193,7 +172,6 @@ class TradingEngine:
         order = self.build_order(signal, price)
         if order is None:
             return None
-
         title, body = format_signal_message(
             signal=signal,
             symbol=order.symbol,
@@ -202,16 +180,14 @@ class TradingEngine:
             mode=self.config.mode,
         )
         self.notifier.notify(title, body)
-
         if self.config.mode == "alert":
-            logger.info("alert-only: 手動発注を案内しました")
             return None
 
         position = self.portfolio.get(order.symbol) or self.broker.get_position(order.symbol)
         try:
             self.risk.check_order(order, last_price=price, position=position)
         except RiskViolation as exc:
-            logger.warning("リスク制限によりスキップ: %s", exc)
+            logger.warning("リスク制限: %s", exc)
             return None
 
         result = self.broker.place_order(order)
@@ -248,17 +224,13 @@ class TradingEngine:
         self.setup_logging()
         self._running = True
         logger.info(
-            "エンジン開始 mode=%s broker=%s strategy=%s symbol=%s",
+            "開始 mode=%s broker=%s symbol=%s",
             self.config.mode,
             self.config.broker,
-            self.config.strategy.name,
             self.config.strategy.symbol,
         )
-        if self.config.mode == "alert":
-            logger.info("Mac向け alert モード: シグナルを通知し、発注は手動です")
         if self.config.is_live:
-            logger.warning("!!! LIVE MODE: Windows RSS で実資金発注します !!!")
-
+            logger.warning("!!! LIVE: 立花証券 e支店へ実発注します !!!")
         i = 0
         try:
             while self._running:
@@ -268,16 +240,11 @@ class TradingEngine:
                     break
                 time.sleep(self.config.strategy.poll_interval_sec)
         except KeyboardInterrupt:
-            logger.info("ユーザーにより停止")
+            logger.info("停止")
         finally:
             self._running = False
             self.broker.close()
-            logger.info("エンジン終了 orders=%d", len(self.results))
         return self.results
 
     def stop(self) -> None:
         self._running = False
-
-    def manual_order_guide(self, order: OrderRequest, price: float) -> None:
-        title, body = format_order_message(order, price=price, mode=self.config.mode)
-        self.notifier.notify(title, body)

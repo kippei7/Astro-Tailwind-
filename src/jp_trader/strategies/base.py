@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from rakuten_trader.models import Bar, Signal
+from jp_trader.models import Bar, Signal
 
 
 class Strategy(ABC):

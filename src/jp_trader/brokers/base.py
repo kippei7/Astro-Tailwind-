@@ -3,12 +3,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Iterable, Optional
 
-from rakuten_trader.models import OrderRequest, OrderResult, Position, Quote
+from jp_trader.models import OrderRequest, OrderResult, Position, Quote
 
 
 class Broker(ABC):
-    """証券会社 / データソースアダプタの共通インターフェース."""
-
     name: str = "base"
 
     @abstractmethod
