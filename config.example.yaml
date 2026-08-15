@@ -1,0 +1,39 @@
+# Mac向けサンプル設定
+# 楽天証券へ自動発注はできません（個人向け公式APIなし / RSSはWindows専用）
+
+mode: alert            # alert | dry_run | paper | live(Windows RSSのみ)
+broker: yfinance       # yfinance | mock | rss
+
+account: specific
+
+notify:
+  macos: true
+  webhook_url: null    # Slack/Discord Incoming Webhook URL（任意）
+
+risk:
+  max_order_quantity: 100
+  max_position_quantity: 1000
+  max_notional_yen: 300000
+  max_orders_per_day: 20
+  allow_short: false
+
+strategy:
+  name: ma_cross
+  symbol: "7203.T"
+  quantity: 100
+  short_window: 5
+  long_window: 25
+  poll_interval_sec: 60.0
+
+# Windows + Parallels 等で RSS 実発注する場合のみ
+rss:
+  workbook_path: excel/rss_bridge.xlsm
+  quote_sheet: Quotes
+  symbol_column: A
+  price_column: B
+  data_start_row: 2
+  vba_stock_order: PyStockOrder
+  vba_next_order_id: PyNextOrderId
+  visible_excel: true
+
+log_dir: logs
