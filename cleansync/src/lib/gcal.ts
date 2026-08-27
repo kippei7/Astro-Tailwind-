@@ -166,12 +166,15 @@ export async function createCalendarEvent(
   }
 }
 
-export async function markCalendarEventDone(gcalEventId: string): Promise<void> {
+export async function markCalendarEventDone(
+  gcalEventId: string,
+  title?: string,
+): Promise<void> {
   if (!gcalEventId) return;
 
   if (isMockCalendar()) {
     await appendLog("done", gcalEventId, {
-      title: withStatusPrefix("event", DONE_PREFIX),
+      title: withStatusPrefix(title || "", DONE_PREFIX),
       mock: true,
     });
     return;

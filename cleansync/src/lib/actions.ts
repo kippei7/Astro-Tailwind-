@@ -25,6 +25,7 @@ function refresh() {
 
 export async function completeTaskAction(eventId: string) {
   let gcalId: string | null = null;
+  let title = "";
   await updateStore((store) => {
     const event = store.task_events.find((item) => item.id === eventId);
     if (!event || event.status === "DONE") return store;
@@ -34,6 +35,7 @@ export async function completeTaskAction(eventId: string) {
     event.status = "DONE";
     event.completed_at = isoNow();
     gcalId = event.gcal_event_id;
+    title = `${view.area.name} / ${view.master.name}`;
 
     const user = store.users.find((item) => item.id === event.assigned_user_id);
     if (user) {
@@ -41,7 +43,7 @@ export async function completeTaskAction(eventId: string) {
     }
     return store;
   });
-  if (gcalId) await markCalendarEventDone(gcalId);
+  if (gcalId) await markCalendarEventDone(gcalId, title);
   refresh();
 }
 
@@ -279,7 +281,7 @@ export async function resetDemoDataAction() {
 export async function completeByAreaNameAction(areaName: string, userId?: string) {
   const today = todayYmd();
   const completedIds: string[] = [];
-  const gcalIds: string[] = [];
+  const gcalIds: { id: string; title: string }[] = [];
   let matchedArea: string | null = null;
 
   await updateStore((store) => {
@@ -307,12 +309,17 @@ export async function completeByAreaNameAction(areaName: string, userId?: string
         user.total_points += eventPoints(event, view.master);
       }
       completedIds.push(event.id);
-      if (event.gcal_event_id) gcalIds.push(event.gcal_event_id);
+      if (event.gcal_event_id) {
+        gcalIds.push({
+          id: event.gcal_event_id,
+          title: view ? `${view.area.name} / ${view.master.name}` : "",
+        });
+      }
     }
     return store;
   });
 
-  await Promise.all(gcalIds.map((id) => markCalendarEventDone(id)));
+  await Promise.all(gcalIds.map((item) => markCalendarEventDone(item.id, item.title)));
   refresh();
   return {
     completed: completedIds.length,
@@ -346,7 +353,7 @@ export async function pushUnsyncedEventsAction() {
     if (!id) continue;
     pushed += 1;
     if (event.status === "DONE") {
-      await markCalendarEventDone(id);
+      await markCalendarEventDone(id, `${view.area.name} / ${view.master.name}`);
     }
     await updateStore((current) => {
       const target = current.task_events.find((item) => item.id === event.id);
