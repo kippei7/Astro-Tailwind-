@@ -25,13 +25,10 @@ const TM = {
   entry: "tm-entry-floor",
 } as const;
 
-function ymd(monthDay: string): string {
-  return `2026-08-${monthDay}`;
-}
-
 export function createSeed(now = new Date()): StoreData {
   const today = todayYmd(now);
-  const yesterday = today <= ymd("01") ? ymd("01") : shiftDay(today, -1);
+  const yesterday = shiftDay(today, -1);
+  const past = (daysAgo: number) => shiftDay(today, -daysAgo);
 
   const store: StoreData = {
     users: [
@@ -139,19 +136,19 @@ export function createSeed(now = new Date()): StoreData {
       },
     ],
     task_events: [
-      done("ev-01", TM.vacuum, USER_HUSBAND, ymd("03")),
-      done("ev-02", TM.bathFloor, USER_WIFE, ymd("02")),
-      done("ev-03", TM.wipe, USER_WIFE, ymd("05")),
-      done("ev-04", TM.filter, USER_HUSBAND, ymd("08")),
-      done("ev-05", TM.fan, USER_WIFE, ymd("09")),
-      done("ev-06", TM.tub, USER_HUSBAND, ymd("12")),
-      done("ev-07", TM.bathMirror, USER_WIFE, ymd("14")),
-      done("ev-08", TM.sink, USER_HUSBAND, ymd("16")),
-      done("ev-09", TM.filter, USER_WIFE, ymd("18")),
-      done("ev-10", TM.toilet, USER_HUSBAND, ymd("20")),
-      done("ev-11", TM.bathFloor, USER_WIFE, ymd("21")),
-      done("ev-12", TM.vacuum, USER_HUSBAND, ymd("23")),
-      done("ev-13", TM.entry, USER_WIFE, ymd("25")),
+      done("ev-01", TM.vacuum, USER_HUSBAND, past(24)),
+      done("ev-02", TM.bathFloor, USER_WIFE, past(25)),
+      done("ev-03", TM.wipe, USER_WIFE, past(22)),
+      done("ev-04", TM.filter, USER_HUSBAND, past(19)),
+      done("ev-05", TM.fan, USER_WIFE, past(18)),
+      done("ev-06", TM.tub, USER_HUSBAND, past(15)),
+      done("ev-07", TM.bathMirror, USER_WIFE, past(13)),
+      done("ev-08", TM.sink, USER_HUSBAND, past(11)),
+      done("ev-09", TM.filter, USER_WIFE, past(9)),
+      done("ev-10", TM.toilet, USER_HUSBAND, past(7)),
+      done("ev-11", TM.bathFloor, USER_WIFE, past(6)),
+      done("ev-12", TM.vacuum, USER_HUSBAND, past(4)),
+      done("ev-13", TM.entry, USER_WIFE, past(2)),
       {
         id: "ev-overdue-toilet",
         task_id: TM.toilet,

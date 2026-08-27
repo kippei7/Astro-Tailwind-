@@ -50,6 +50,30 @@ export function leader(users: User[], byUser: Map<string, number>) {
   )[0];
 }
 
+export function negotiationCopy(
+  users: User[],
+  byUser: Map<string, number>,
+): string {
+  if (users.length < 2) {
+    return "ポイントを貯めて、自由時間やご褒美の交渉材料にしましょう。";
+  }
+
+  const ranked = [...users].sort(
+    (a, b) => (byUser.get(b.id) ?? 0) - (byUser.get(a.id) ?? 0),
+  );
+  const first = byUser.get(ranked[0].id) ?? 0;
+  const second = byUser.get(ranked[1].id) ?? 0;
+  const lead = first - second;
+
+  if (first === 0 && second === 0) {
+    return "まだ今月の完了がありません。今日の掃除からポイントを積みましょう。";
+  }
+  if (lead === 0) {
+    return "今月のポイントは互角です。お疲れさま。ご褒美の分け方も話し合いやすい状態です。";
+  }
+  return `${ranked[0].name}が ${lead}pt リード。自由時間やご褒美の交渉材料になります。`;
+}
+
 export function dashboardMonthLabel(now = new Date()) {
   const { year, month } = currentYearMonth(now);
   return { year, month, label: `${year}年${month}月` };

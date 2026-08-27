@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { PointsChart } from "@/components/PointsChart";
 import { TaskCard } from "@/components/TaskCard";
-import { dashboardMonthLabel, monthlyPoints } from "@/lib/dashboard";
+import {
+  dashboardMonthLabel,
+  monthlyPoints,
+  negotiationCopy,
+} from "@/lib/dashboard";
 import { todayYmd } from "@/lib/dates";
 import { filterEvents, hydrateEvents } from "@/lib/queries";
 import { getStore } from "@/lib/store";
@@ -32,6 +36,15 @@ export default async function DashboardPage() {
           誰がどれだけ担ったかを見える化して、自由時間やご褒美の交渉を数字で始められるようにする。
         </p>
       </header>
+
+      <section className="card negotiation-card">
+        <p className="text-xs font-semibold tracking-[0.14em] text-[var(--forest)]">
+          今月の交渉メモ
+        </p>
+        <p className="mt-2 font-display text-2xl leading-snug">
+          {negotiationCopy(store.users, stats.byUser)}
+        </p>
+      </section>
 
       <section className="grid-2">
         {store.users.map((user) => {

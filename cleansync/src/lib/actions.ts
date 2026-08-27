@@ -13,6 +13,7 @@ import { hydrateEvent } from "./queries";
 import { nextScheduledDate } from "./reschedule";
 import { getStore, resetStore, updateStore } from "./store";
 import type { RescheduleRule, TaskStatus } from "./types";
+import { findAreaByUtterance } from "./voice";
 
 function refresh() {
   revalidatePath("/", "layout");
@@ -62,6 +63,7 @@ export async function rescheduleTaskAction(eventId: string) {
     event.scheduled_date = nextScheduledDate(
       event.scheduled_date,
       master.reschedule_rule,
+      todayYmd(),
     );
     gcalId = event.gcal_event_id;
     nextDate = event.scheduled_date;
@@ -74,7 +76,8 @@ export async function rescheduleTaskAction(eventId: string) {
 export async function runNightlyRescheduleAction() {
   const today = todayYmd();
   type Move = { gcalId: string; date: string };
-  const moves: Move[] = [];
+  const calendarMoves: Move[] = [];
+  let moved = 0;
 
   await updateStore((store) => {
     for (const event of store.task_events) {
@@ -85,19 +88,24 @@ export async function runNightlyRescheduleAction() {
       event.scheduled_date = nextScheduledDate(
         event.scheduled_date,
         master.reschedule_rule,
+        today,
       );
+      moved += 1;
       if (event.gcal_event_id) {
-        moves.push({ gcalId: event.gcal_event_id, date: event.scheduled_date });
+        calendarMoves.push({
+          gcalId: event.gcal_event_id,
+          date: event.scheduled_date,
+        });
       }
     }
     return store;
   });
 
   await Promise.all(
-    moves.map((move) => updateCalendarEventDate(move.gcalId, move.date)),
+    calendarMoves.map((move) => updateCalendarEventDate(move.gcalId, move.date)),
   );
   refresh();
-  return { moved: moves.length };
+  return { moved };
 }
 
 export async function createTaskEventAction(formData: FormData) {
@@ -263,10 +271,12 @@ export async function resetDemoDataAction() {
 export async function completeByAreaNameAction(areaName: string, userId?: string) {
   const today = todayYmd();
   const completedIds: string[] = [];
+  let matchedArea: string | null = null;
 
   await updateStore((store) => {
-    const area = store.areas.find((item) => item.name === areaName);
+    const area = findAreaByUtterance(store.areas, areaName);
     if (!area) return store;
+    matchedArea = area.name;
     const masterIds = store.task_master
       .filter((item) => item.area_id === area.id)
       .map((item) => item.id);
@@ -274,7 +284,7 @@ export async function completeByAreaNameAction(areaName: string, userId?: string
     const targets = store.task_events.filter(
       (event) =>
         event.status === "TODO" &&
-        event.scheduled_date === today &&
+        event.scheduled_date <= today &&
         masterIds.includes(event.task_id),
     );
 
@@ -296,5 +306,9 @@ export async function completeByAreaNameAction(areaName: string, userId?: string
   });
 
   refresh();
-  return { completed: completedIds.length, ids: completedIds };
+  return {
+    completed: completedIds.length,
+    ids: completedIds,
+    areaName: matchedArea,
+  };
 }
