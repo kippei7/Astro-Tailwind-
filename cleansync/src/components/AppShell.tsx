@@ -49,7 +49,7 @@ export function AppShell({
         <p className="sidebar-note">
           Phase 1 · Web MVP
           <br />
-          カレンダー / Alexa は次フェーズ
+          Google Calendar / Alexa は次フェーズ
         </p>
       </aside>
       <div className="main-column">

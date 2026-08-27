@@ -4,6 +4,7 @@ import { nextScheduledDate } from "./reschedule";
 import { findAreaByUtterance, normalizeUtterance } from "./voice";
 import { negotiationCopy } from "./dashboard";
 import { createSeed } from "./seed";
+import { monthGrid, resolveMonthSelection } from "./calendar";
 
 describe("points", () => {
   it("keeps base points until the alert threshold", () => {
@@ -86,5 +87,32 @@ describe("seed + dashboard", () => {
     expect(negotiationCopy(users, new Map([["a", 40], ["b", 28]]))).toContain(
       "夫が 12pt リード",
     );
+  });
+});
+
+describe("calendar", () => {
+  it("builds an August 2026 grid starting on Saturday", () => {
+    const cells = monthGrid(2026, 8, "2026-08-27");
+    expect(cells).toHaveLength(42);
+    expect(cells[0]?.date).toBe("2026-07-26");
+    expect(cells[6]?.date).toBe("2026-08-01");
+    expect(cells[6]?.inMonth).toBe(true);
+    expect(cells.find((cell) => cell.date === "2026-08-27")?.isToday).toBe(true);
+  });
+
+  it("selects today when viewing the current month", () => {
+    const resolved = resolveMonthSelection({
+      now: new Date("2026-08-27T03:00:00+09:00"),
+    });
+    expect(resolved.month).toBe(8);
+    expect(resolved.selectedDate).toBe("2026-08-27");
+  });
+
+  it("selects the first day when browsing another month", () => {
+    const resolved = resolveMonthSelection({
+      month: "2026-09",
+      now: new Date("2026-08-27T03:00:00+09:00"),
+    });
+    expect(resolved.selectedDate).toBe("2026-09-01");
   });
 });

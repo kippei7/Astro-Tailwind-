@@ -359,6 +359,210 @@ button:disabled {
   color: white;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.cal-wrap {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.cal-toolbar {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px auto;
+  gap: 8px;
+  align-items: center;
+  padding: 14px 14px 10px;
+}
+
+.cal-month-label {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 500;
+}
+
+.cal-nav-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.cal-nav-btn:hover {
+  background: var(--linen);
+  color: var(--forest-deep);
+}
+
+.cal-today-btn {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.cal-weekdays,
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.cal-weekday {
+  padding: 6px 0 8px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.cal-weekday-sun,
+.cal-daynum-sun {
+  color: #b4233d;
+}
+
+.cal-weekday-sat,
+.cal-daynum-sat {
+  color: var(--forest);
+}
+
+.cal-cell {
+  position: relative;
+  min-height: 76px;
+  padding: 6px 5px 8px;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.cal-cell:nth-child(7n + 1) {
+  border-left: 0;
+}
+
+.cal-cell-out {
+  background: color-mix(in srgb, var(--linen) 55%, white);
+}
+
+.cal-cell-out .cal-daynum {
+  opacity: 0.45;
+}
+
+.cal-cell-alert {
+  background: linear-gradient(180deg, var(--alert-bg), var(--paper) 70%);
+}
+
+.cal-cell-selected {
+  outline: 2px solid var(--forest);
+  outline-offset: -2px;
+  z-index: 1;
+  background: #f7fffb;
+}
+
+.cal-cell-head {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+}
+
+.cal-daynum {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  color: inherit;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cal-cell-today .cal-daynum {
+  background: var(--forest);
+  color: #f4fffb;
+}
+
+.cal-add {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 16px;
+  line-height: 1;
+  z-index: 2;
+}
+
+.cal-add:hover {
+  background: var(--linen);
+  color: var(--forest-deep);
+}
+
+.cal-cell-body {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.cal-dots {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 8px;
+  pointer-events: none;
+}
+
+.cal-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+
+.cal-dot-done {
+  opacity: 0.4;
+}
+
+.cal-dot-alert {
+  box-shadow: 0 0 0 2px #f3d5a3;
+}
+
+.cal-chips,
+.cal-more {
+  display: none;
+}
+
+.cal-add-form {
+  display: grid;
+  gap: 12px;
+}
+
+.cal-add-submit {
+  width: 100%;
+}
+
+#day-panel {
+  scroll-margin-top: 72px;
+}
+
 @media (min-width: 880px) {
   .sidebar {
     display: flex;
@@ -371,11 +575,88 @@ button:disabled {
   }
 
   .page-main {
-    width: min(1080px, calc(100% - 64px));
+    width: min(1120px, calc(100% - 64px));
     padding: 36px 0 64px;
   }
 
   .grid-2 {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .cal-cell {
+    min-height: 118px;
+    padding: 7px 6px 8px;
+  }
+
+  .cal-dots {
+    display: none;
+  }
+
+  .cal-chips {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    gap: 3px;
+    margin-top: 6px;
+  }
+
+  .cal-chip {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 6px;
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--chip) 16%, white);
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  .cal-chip-dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: var(--chip);
+  }
+
+  .cal-chip-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cal-chip-done {
+    opacity: 0.55;
+    text-decoration: line-through;
+  }
+
+  .cal-chip-cancel {
+    opacity: 0.4;
+  }
+
+  .cal-chip-alert {
+    background: var(--alert-bg);
+  }
+
+  .cal-more {
+    display: inline-flex;
+    padding: 0 4px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .cal-add-form {
+    grid-template-columns: minmax(0, 1.5fr) 120px auto;
+    align-items: end;
+  }
+
+  .cal-add-submit {
+    width: auto;
+    min-width: 140px;
   }
 }
