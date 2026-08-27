@@ -441,8 +441,8 @@ button:disabled {
 
 .cal-cell {
   position: relative;
-  min-height: 76px;
-  padding: 6px 5px 8px;
+  min-height: 62px;
+  padding: 4px 4px 6px;
   border-top: 1px solid var(--line);
   border-left: 1px solid var(--line);
   background: var(--paper);
