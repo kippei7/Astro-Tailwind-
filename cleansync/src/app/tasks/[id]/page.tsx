@@ -46,6 +46,7 @@ export default async function TaskDetailPage({
           {event.isAlert ? ` → 滞留ボーナスで ${event.effectivePoints} pt` : ""}
           {" · リスケ規則 "}
           {event.master.reschedule_rule === "NEXT_WEEKEND" ? "次の週末" : "翌日"}
+          {event.gcal_event_id ? " · Googleカレンダー同期済み" : " · カレンダー未同期"}
         </p>
       </section>
 

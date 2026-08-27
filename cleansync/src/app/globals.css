@@ -211,8 +211,11 @@ body {
   box-shadow: var(--shadow);
 }
 
-.card {
-  padding: 20px;
+.card code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--linen);
+  font-size: 12px;
 }
 
 .negotiation-card {

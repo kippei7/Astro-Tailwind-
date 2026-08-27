@@ -28,13 +28,13 @@ PostgreSQL 定義は `supabase/migrations/` を参照。
 ## 4. コア機能
 
 1. **ダッシュボード** — 夫婦の今月ポイント比較。滞留（`reschedule_count >= 3`）は 1.2 倍。
-2. **Googleカレンダー同期** — Phase 2。作成時に eventId を保存。完了時はタイトルに「【済】」、色をグレーへ。
+2. **Googleカレンダー同期** — 作成時に eventId を保存。完了時はタイトルに「【済】」、色をグレーへ。設定画面から OAuth 接続。
 3. **Alexa** — Phase 4。エリア名から本日（および期限超過）の未完了を完了。
 4. **自動リスケ** — 毎日 2:00（JST）。`TODO` かつ予定日が昨日以前のものをルールに従って移動。
 
 ## 5. ロードマップ
 
-- Phase 1: Web MVP（この実装）
-- Phase 2: Google Calendar
+- Phase 1: Web MVP（ダッシュボード、CRUD、月カレンダー）
+- Phase 2: Google Calendar OAuth と予定同期（実装済み）
 - Phase 3: Cron 自動化
 - Phase 4: 音声インターフェース

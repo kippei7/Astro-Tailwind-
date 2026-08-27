@@ -33,12 +33,44 @@ export type TaskEvent = {
   reschedule_count: number;
 };
 
+export type GcalSyncAction = "create" | "done" | "reschedule" | "delete";
+
+export type GcalSyncEntry = {
+  at: string;
+  action: GcalSyncAction;
+  eventId: string;
+  title?: string;
+  date?: string;
+  mock?: boolean;
+};
+
+export type GoogleAccount = {
+  calendar_id: string;
+  email: string | null;
+  access_token: string | null;
+  refresh_token: string | null;
+  expiry: string | null;
+  sync_log: GcalSyncEntry[];
+};
+
 export type StoreData = {
   users: User[];
   areas: Area[];
   task_master: TaskMaster[];
   task_events: TaskEvent[];
+  google: GoogleAccount;
 };
+
+export function emptyGoogleAccount(): GoogleAccount {
+  return {
+    calendar_id: "primary",
+    email: null,
+    access_token: null,
+    refresh_token: null,
+    expiry: null,
+    sync_log: [],
+  };
+}
 
 export type TaskEventView = TaskEvent & {
   master: TaskMaster;

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { connection } from "next/server";
 import { createSeed } from "./seed";
-import type { StoreData } from "./types";
+import { emptyGoogleAccount, type StoreData } from "./types";
 
 const STORE_PATH = path.join(process.cwd(), "data", "store.json");
 
@@ -17,6 +17,19 @@ function enqueue<T>(fn: () => T): Promise<T> {
   return run;
 }
 
+function normalizeStore(store: StoreData): StoreData {
+  if (!store.google) {
+    store.google = emptyGoogleAccount();
+  }
+  if (!Array.isArray(store.google.sync_log)) {
+    store.google.sync_log = [];
+  }
+  if (!store.google.calendar_id) {
+    store.google.calendar_id = "primary";
+  }
+  return store;
+}
+
 function ensureStoreFile(): void {
   if (existsSync(STORE_PATH)) return;
   mkdirSync(path.dirname(STORE_PATH), { recursive: true });
@@ -26,12 +39,12 @@ function ensureStoreFile(): void {
 function readStoreSync(): StoreData {
   ensureStoreFile();
   const raw = readFileSync(STORE_PATH, "utf8");
-  return JSON.parse(raw) as StoreData;
+  return normalizeStore(JSON.parse(raw) as StoreData);
 }
 
 function writeStoreSync(store: StoreData): void {
   mkdirSync(path.dirname(STORE_PATH), { recursive: true });
-  writeFileSync(STORE_PATH, JSON.stringify(store, null, 2), "utf8");
+  writeFileSync(STORE_PATH, JSON.stringify(normalizeStore(store), null, 2), "utf8");
 }
 
 export async function getStore(): Promise<StoreData> {
@@ -53,7 +66,9 @@ export async function updateStore(
 export async function resetStore(): Promise<StoreData> {
   await connection();
   return enqueue(() => {
+    const previous = existsSync(STORE_PATH) ? readStoreSync() : null;
     const seeded = createSeed();
+    if (previous?.google) seeded.google = previous.google;
     writeStoreSync(seeded);
     return seeded;
   });

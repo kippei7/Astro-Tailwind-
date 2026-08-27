@@ -6,6 +6,16 @@
 
 要件の全文は [docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md) にあります。
 
+## Phase 2（Google カレンダー）
+
+- 設定画面から Google アカウントを OAuth 接続
+- 予定作成時に終日イベントを追加し `gcal_event_id` を保存
+- 完了時はタイトルに「【済】」、色をグレー（colorId 8）
+- リスケで日付更新、キャンセルでイベント削除
+- 資格情報の前に試す場合は `GCAL_MOCK=1`
+
+手順は [docs/GOOGLE_CALENDAR.md](./docs/GOOGLE_CALENDAR.md) を参照してください。
+
 ## Phase 1（Web MVP）でできること
 
 - 今月の獲得ポイントを夫婦で比較（Recharts）し、リード差を交渉メモとして表示
@@ -40,7 +50,7 @@ npm run build
 | フロント | Next.js (App Router, TypeScript), Tailwind CSS, Recharts |
 | データ | Phase 1: ローカル JSON。本番: Supabase (PostgreSQL, Auth, Edge Functions, pg_cron) |
 | デプロイ | Vercel（`vercel.json` に JST 2:00 = UTC 17:00 の Cron を定義） |
-| 外部連携 | Google Calendar（Phase 2）、Alexa + Lambda（Phase 4） |
+| 外部連携 | Google Calendar（Phase 2 OAuth）、Alexa + Lambda（Phase 4） |
 
 ## 環境変数
 

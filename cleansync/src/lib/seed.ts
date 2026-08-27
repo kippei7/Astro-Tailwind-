@@ -1,6 +1,6 @@
 import { todayYmd } from "./dates";
 import { eventPoints } from "./points";
-import type { StoreData } from "./types";
+import { emptyGoogleAccount, type StoreData } from "./types";
 
 const USER_HUSBAND = "usr-husband";
 const USER_WIFE = "usr-wife";
@@ -200,6 +200,7 @@ export function createSeed(now = new Date()): StoreData {
         reschedule_count: 0,
       },
     ],
+    google: emptyGoogleAccount(),
   };
 
   for (const user of store.users) {

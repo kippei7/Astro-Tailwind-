@@ -34,6 +34,7 @@ export function TaskCard({
             {event.assignee.name}
             {showDate ? ` · ${formatJaDateLong(event.scheduled_date)}` : null}
             {event.reschedule_count > 0 ? ` · リスケ ${event.reschedule_count}回` : null}
+            {event.gcal_event_id ? " · カレンダー同期" : null}
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">

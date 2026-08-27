@@ -47,9 +47,9 @@ export function AppShell({
           })}
         </nav>
         <p className="sidebar-note">
-          Phase 1 · Web MVP
+          Phase 2 · Google Calendar
           <br />
-          Google Calendar / Alexa は次フェーズ
+          Alexa は次フェーズ
         </p>
       </aside>
       <div className="main-column">

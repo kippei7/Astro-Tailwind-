@@ -1,9 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { randomUUID } from "crypto";
 import {
+  colorForAssignee,
   createCalendarEvent,
+  deleteCalendarEvent,
+  disconnectGoogle,
   markCalendarEventDone,
   updateCalendarEventDate,
 } from "./gcal";
@@ -42,12 +46,15 @@ export async function completeTaskAction(eventId: string) {
 }
 
 export async function cancelTaskAction(eventId: string) {
+  let gcalId: string | null = null;
   await updateStore((store) => {
     const event = store.task_events.find((item) => item.id === eventId);
     if (!event || event.status === "DONE") return store;
     event.status = "CANCELLED";
+    gcalId = event.gcal_event_id;
     return store;
   });
+  if (gcalId) await deleteCalendarEvent(gcalId);
   refresh();
 }
 
@@ -128,6 +135,7 @@ export async function createTaskEventAction(formData: FormData) {
     title: `${area.name} / ${master.name}`,
     date: scheduledDate,
     description: `${user.name} 担当\n${master.description}`,
+    colorId: colorForAssignee(user),
   });
 
   await updateStore((current) => {
@@ -271,6 +279,7 @@ export async function resetDemoDataAction() {
 export async function completeByAreaNameAction(areaName: string, userId?: string) {
   const today = todayYmd();
   const completedIds: string[] = [];
+  const gcalIds: string[] = [];
   let matchedArea: string | null = null;
 
   await updateStore((store) => {
@@ -298,17 +307,53 @@ export async function completeByAreaNameAction(areaName: string, userId?: string
         user.total_points += eventPoints(event, view.master);
       }
       completedIds.push(event.id);
-      if (event.gcal_event_id) {
-        void markCalendarEventDone(event.gcal_event_id);
-      }
+      if (event.gcal_event_id) gcalIds.push(event.gcal_event_id);
     }
     return store;
   });
 
+  await Promise.all(gcalIds.map((id) => markCalendarEventDone(id)));
   refresh();
   return {
     completed: completedIds.length,
     ids: completedIds,
     areaName: matchedArea,
   };
+}
+
+export async function disconnectGoogleAction() {
+  await disconnectGoogle();
+  refresh();
+  redirect("/settings?gcal=disconnected");
+}
+
+export async function pushUnsyncedEventsAction() {
+  const store = await getStore();
+  let pushed = 0;
+  for (const event of store.task_events) {
+    if (event.gcal_event_id || event.status === "CANCELLED") continue;
+    const view = hydrateEvent(store, event);
+    if (!view) continue;
+    const id = await createCalendarEvent({
+      title:
+        event.status === "DONE"
+          ? `【済】${view.area.name} / ${view.master.name}`
+          : `${view.area.name} / ${view.master.name}`,
+      date: event.scheduled_date,
+      description: `${view.assignee.name} 担当\n${view.master.description}`,
+      colorId: event.status === "DONE" ? "8" : colorForAssignee(view.assignee),
+    });
+    if (!id) continue;
+    pushed += 1;
+    if (event.status === "DONE") {
+      await markCalendarEventDone(id);
+    }
+    await updateStore((current) => {
+      const target = current.task_events.find((item) => item.id === event.id);
+      if (target) target.gcal_event_id = id;
+      return current;
+    });
+  }
+  refresh();
+  return { pushed };
 }
