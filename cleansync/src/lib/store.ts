@@ -4,7 +4,9 @@ import { connection } from "next/server";
 import { createSeed } from "./seed";
 import { emptyGoogleAccount, type StoreData } from "./types";
 
-const STORE_PATH = path.join(process.cwd(), "data", "store.json");
+const STORE_PATH = process.env.VERCEL
+  ? path.join("/tmp", "cleansync-store.json")
+  : path.join(process.cwd(), "data", "store.json");
 
 let queue: Promise<unknown> = Promise.resolve();
 
