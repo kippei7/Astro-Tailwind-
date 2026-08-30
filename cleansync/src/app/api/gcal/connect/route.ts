@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { connectMockAccount } from "@/lib/gcal";
 import {
   authorizationUrl,
+  googleClientId,
   isMockCalendar,
   isOAuthConfigured,
   oauthRedirectUri,
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
   });
 
   const url = authorizationUrl({
-    clientId: process.env.GOOGLE_CALENDAR_CLIENT_ID ?? "",
+    clientId: googleClientId(),
     redirectUri: oauthRedirectUri(origin),
     state,
   });

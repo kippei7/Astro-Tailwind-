@@ -27,6 +27,9 @@ function normalizeStore(store: StoreData): StoreData {
   if (!store.google.calendar_id) {
     store.google.calendar_id = "primary";
   }
+  if (store.google.last_error === undefined) {
+    store.google.last_error = null;
+  }
   return store;
 }
 

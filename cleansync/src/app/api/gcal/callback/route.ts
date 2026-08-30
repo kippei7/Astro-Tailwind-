@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { saveOAuthTokens } from "@/lib/gcal";
+import { pushUnsyncedEvents } from "@/lib/actions";
+import { recordGoogleSyncError, saveOAuthTokens } from "@/lib/gcal";
 import { exchangeCodeForTokens, oauthRedirectUri } from "@/lib/gcal-oauth";
 
 export async function GET(request: Request) {
@@ -28,9 +29,14 @@ export async function GET(request: Request) {
       refreshToken: tokens.refresh_token,
       expiresIn: tokens.expires_in,
     });
+    await pushUnsyncedEvents();
     return NextResponse.redirect(new URL("/settings?gcal=connected", origin));
   } catch (cause) {
     console.error("gcal oauth callback failed", cause);
+    await recordGoogleSyncError(
+      "refresh",
+      cause instanceof Error ? cause.message : String(cause),
+    );
     return NextResponse.redirect(new URL("/settings?gcal=error", origin));
   }
 }

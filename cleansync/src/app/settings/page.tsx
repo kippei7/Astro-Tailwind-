@@ -6,16 +6,28 @@ import {
   runNightlyRescheduleAction,
   updateUserNameAction,
 } from "@/lib/actions";
-import { isGoogleConfigured, isGoogleConnected } from "@/lib/gcal";
-import { isMockCalendar, isOAuthConfigured } from "@/lib/gcal-oauth";
+import {
+  isGoogleConfigured,
+  isGoogleConnected,
+  looksLikeMockAccount,
+  needsCalendarPush,
+} from "@/lib/gcal";
+import {
+  isGoogleClientIdShapeValid,
+  isMockCalendar,
+  isOAuthConfigured,
+  rawGoogleClientIdWasConsoleUrl,
+} from "@/lib/gcal-oauth";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { getStore } from "@/lib/store";
 import { SubmitButton } from "@/components/SubmitButton";
 
 const GCAL_FLASH: Record<string, string> = {
-  connected: "Googleカレンダーを接続しました。これから作る予定が同期されます。",
+  connected:
+    "Googleカレンダーを接続しました。未同期の予定も送信し、これから作る予定も同期されます。",
   mock: "モック連携を開始しました。予定の作成・完了・リスケが同期ログに残ります。",
-  error: "Googleカレンダーの接続に失敗しました。リダイレクトURIとクライアント設定を確認してください。",
+  error:
+    "Googleカレンダーの接続に失敗しました。Client ID（Cloud Console のURLではなく ID 本体）、リダイレクトURI、テストユーザーを確認してください。",
   missing_env: "GOOGLE_CALENDAR_CLIENT_ID / SECRET が未設定です。.env を確認してください。",
   disconnected: "Googleカレンダー連携を解除しました。",
 };
@@ -32,9 +44,10 @@ export default async function SettingsPage({
   const mock = isMockCalendar();
   const configured = isGoogleConfigured();
   const connected = await isGoogleConnected();
-  const unsynced = store.task_events.filter(
-    (event) => !event.gcal_event_id && event.status !== "CANCELLED",
-  ).length;
+  const leftoverMock = looksLikeMockAccount(store.google) && !mock;
+  const clientIdOk = !oauthReady || isGoogleClientIdShapeValid();
+  const pastedConsoleUrl = rawGoogleClientIdWasConsoleUrl();
+  const unsynced = store.task_events.filter(needsCalendarPush).length;
   const flash = params.gcal ? GCAL_FLASH[params.gcal] : null;
 
   return (
@@ -84,17 +97,23 @@ export default async function SettingsPage({
             mock
               ? "GCAL_MOCK=1（デモ）"
               : oauthReady
-                ? "設定済み"
+                ? pastedConsoleUrl
+                  ? "設定済み（Console URL から ID を抽出）"
+                  : clientIdOk
+                    ? "設定済み"
+                    : "Client ID の形式が不正"
                 : "未設定"
           }
-          ok={configured}
+          ok={configured && clientIdOk}
         />
         <StatusRow
           label="接続アカウント"
           value={
-            connected
-              ? store.google.email ?? "接続済み"
-              : "未接続"
+            leftoverMock
+              ? "モック接続のまま（本物のカレンダーには送られていません）"
+              : connected
+                ? store.google.email ?? "接続済み"
+                : "未接続"
           }
           ok={connected}
         />
@@ -105,9 +124,30 @@ export default async function SettingsPage({
         />
         <StatusRow
           label="未同期の予定"
-          value={connected ? `${unsynced} 件` : "—"}
+          value={connected || leftoverMock ? `${unsynced} 件` : "—"}
           ok={connected && unsynced === 0}
         />
+
+        {leftoverMock ? (
+          <p className="rounded-xl bg-[var(--alert-bg)] px-3 py-2 text-sm leading-6 text-[var(--alert)]">
+            以前のモック連携（mock@cleansync.local）が残っています。本物の Google
+            カレンダーには送られません。「連携を解除」してから「Googleカレンダーを接続」してください。
+          </p>
+        ) : null}
+
+        {!clientIdOk ? (
+          <p className="rounded-xl bg-[var(--alert-bg)] px-3 py-2 text-sm leading-6 text-[var(--alert)]">
+            <code>GOOGLE_CALENDAR_CLIENT_ID</code> には Cloud Console のページ URL
+            ではなく、<code>….apps.googleusercontent.com</code> で終わる Client ID
+            本体を入れてください。
+          </p>
+        ) : null}
+
+        {store.google.last_error ? (
+          <p className="rounded-xl bg-[var(--alert-bg)] px-3 py-2 text-sm leading-6 text-[var(--alert)]">
+            直近の同期エラー: {store.google.last_error}
+          </p>
+        ) : null}
 
         <div className="flex flex-wrap gap-2">
           {connected ? (
@@ -129,9 +169,18 @@ export default async function SettingsPage({
               </form>
             </>
           ) : (
-            <a href="/api/gcal/connect" className="btn-primary">
-              Googleカレンダーを接続
-            </a>
+            <>
+              {leftoverMock ? (
+                <form action={disconnectGoogleAction}>
+                  <SubmitButton className="btn-danger" pendingLabel="解除中…">
+                    モック連携を解除
+                  </SubmitButton>
+                </form>
+              ) : null}
+              <a href="/api/gcal/connect" className="btn-primary">
+                Googleカレンダーを接続
+              </a>
+            </>
           )}
         </div>
 
@@ -157,6 +206,7 @@ export default async function SettingsPage({
                   {entry.title ? ` · ${entry.title}` : ""}
                   {entry.date ? ` · ${entry.date}` : ""}
                   {entry.mock ? " · mock" : ""}
+                  {entry.error ? ` · 失敗: ${entry.error}` : ""}
                 </li>
               ))}
             </ul>
@@ -219,6 +269,7 @@ function actionLabel(action: string) {
   if (action === "done") return "完了";
   if (action === "reschedule") return "リスケ";
   if (action === "delete") return "削除";
+  if (action === "refresh") return "トークン更新";
   return action;
 }
 

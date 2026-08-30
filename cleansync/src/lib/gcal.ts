@@ -2,13 +2,20 @@ import { randomUUID } from "crypto";
 import { isoNow, nextDayYmd } from "./dates";
 import {
   fetchGoogleEmail,
+  hasLiveCalendarSync,
   isMockCalendar,
   isOAuthConfigured,
   refreshAccessToken,
   revokeGoogleToken,
 } from "./gcal-oauth";
 import { getStore, updateStore } from "./store";
-import { emptyGoogleAccount, type GcalSyncAction, type User } from "./types";
+import {
+  emptyGoogleAccount,
+  type GcalSyncAction,
+  type GoogleAccount,
+  type TaskStatus,
+  type User,
+} from "./types";
 
 export const DONE_PREFIX = "【済】";
 export const CANCEL_PREFIX = "【取消】";
@@ -57,21 +64,45 @@ export function isGoogleConfigured(): boolean {
   return isOAuthConfigured() || isMockCalendar();
 }
 
+export function looksLikeMockAccount(
+  account: Pick<GoogleAccount, "email" | "access_token" | "refresh_token"> | null | undefined,
+): boolean {
+  if (!account) return false;
+  return (
+    account.email === "mock@cleansync.local" ||
+    account.access_token === "mock-token" ||
+    account.refresh_token === "mock-refresh"
+  );
+}
+
+export function needsCalendarPush(event: {
+  gcal_event_id: string | null;
+  status: TaskStatus;
+}): boolean {
+  if (event.status === "CANCELLED") return false;
+  return !hasLiveCalendarSync(event.gcal_event_id);
+}
+
 export async function isGoogleConnected(): Promise<boolean> {
+  const store = await getStore();
   if (isMockCalendar()) {
-    const store = await getStore();
     return Boolean(store.google?.email);
   }
-  const store = await getStore();
+  if (looksLikeMockAccount(store.google)) return false;
   return Boolean(store.google?.refresh_token || store.google?.access_token);
 }
 
 async function appendLog(
   action: GcalSyncAction,
   eventId: string,
-  extra?: { title?: string; date?: string; mock?: boolean },
+  extra?: { title?: string; date?: string; mock?: boolean; error?: string },
 ) {
   await updateStore((store) => {
+    if (extra?.error) {
+      store.google.last_error = extra.error;
+    } else {
+      store.google.last_error = null;
+    }
     store.google.sync_log.unshift({
       at: isoNow(),
       action,
@@ -79,10 +110,19 @@ async function appendLog(
       title: extra?.title,
       date: extra?.date,
       mock: extra?.mock,
+      ok: extra?.error ? false : true,
+      error: extra?.error,
     });
     store.google.sync_log = store.google.sync_log.slice(0, 20);
     return store;
   });
+}
+
+export async function recordGoogleSyncError(
+  action: GcalSyncAction,
+  message: string,
+): Promise<void> {
+  await appendLog(action, "", { error: message });
 }
 
 async function getAccessToken(): Promise<string | null> {
@@ -91,6 +131,7 @@ async function getAccessToken(): Promise<string | null> {
 
   const store = await getStore();
   const account = store.google;
+  if (looksLikeMockAccount(account)) return null;
   if (!account.refresh_token && !account.access_token) return null;
 
   const expiry = account.expiry ? Date.parse(account.expiry) : 0;
@@ -100,14 +141,21 @@ async function getAccessToken(): Promise<string | null> {
 
   if (!account.refresh_token) return account.access_token;
 
-  const refreshed = await refreshAccessToken(account.refresh_token);
-  const nextExpiry = new Date(Date.now() + refreshed.expires_in * 1000).toISOString();
-  await updateStore((current) => {
-    current.google.access_token = refreshed.access_token;
-    current.google.expiry = nextExpiry;
-    return current;
-  });
-  return refreshed.access_token;
+  try {
+    const refreshed = await refreshAccessToken(account.refresh_token);
+    const nextExpiry = new Date(Date.now() + refreshed.expires_in * 1000).toISOString();
+    await updateStore((current) => {
+      current.google.access_token = refreshed.access_token;
+      current.google.expiry = nextExpiry;
+      current.google.last_error = null;
+      return current;
+    });
+    return refreshed.access_token;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await recordGoogleSyncError("refresh", message);
+    return null;
+  }
 }
 
 async function calendarRequest(
@@ -151,7 +199,12 @@ export async function createCalendarEvent(
     });
     if (!response) return null;
     if (!response.ok) {
-      console.error("gcal create failed", response.status, await response.text());
+      const text = await response.text();
+      console.error("gcal create failed", response.status, text);
+      await recordGoogleSyncError(
+        "create",
+        `create ${response.status}: ${text.slice(0, 200)}`,
+      );
       return null;
     }
     const data = (await response.json()) as { id?: string };
@@ -162,6 +215,10 @@ export async function createCalendarEvent(
     return id;
   } catch (error) {
     console.error("gcal create error", error);
+    await recordGoogleSyncError(
+      "create",
+      error instanceof Error ? error.message : String(error),
+    );
     return null;
   }
 }
@@ -197,12 +254,18 @@ export async function markCalendarEventDone(
       }),
     });
     if (response && !response.ok && response.status !== 404) {
-      console.error("gcal done failed", response.status, await response.text());
+      const text = await response.text();
+      console.error("gcal done failed", response.status, text);
+      await recordGoogleSyncError("done", `done ${response.status}: ${text.slice(0, 200)}`);
       return;
     }
     await appendLog("done", gcalEventId, { title: summary });
   } catch (error) {
     console.error("gcal done error", error);
+    await recordGoogleSyncError(
+      "done",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 
@@ -229,12 +292,21 @@ export async function updateCalendarEventDate(
       }),
     });
     if (response && !response.ok && response.status !== 404) {
-      console.error("gcal reschedule failed", response.status, await response.text());
+      const text = await response.text();
+      console.error("gcal reschedule failed", response.status, text);
+      await recordGoogleSyncError(
+        "reschedule",
+        `reschedule ${response.status}: ${text.slice(0, 200)}`,
+      );
       return;
     }
     await appendLog("reschedule", gcalEventId, { date });
   } catch (error) {
     console.error("gcal reschedule error", error);
+    await recordGoogleSyncError(
+      "reschedule",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 
@@ -253,12 +325,21 @@ export async function deleteCalendarEvent(gcalEventId: string): Promise<void> {
       method: "DELETE",
     });
     if (response && !response.ok && response.status !== 404) {
-      console.error("gcal delete failed", response.status, await response.text());
+      const text = await response.text();
+      console.error("gcal delete failed", response.status, text);
+      await recordGoogleSyncError(
+        "delete",
+        `delete ${response.status}: ${text.slice(0, 200)}`,
+      );
       return;
     }
     await appendLog("delete", gcalEventId);
   } catch (error) {
     console.error("gcal delete error", error);
+    await recordGoogleSyncError(
+      "delete",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 
@@ -283,6 +364,7 @@ export async function saveOAuthTokens(opts: {
     if (opts.refreshToken) store.google.refresh_token = opts.refreshToken;
     store.google.expiry = new Date(Date.now() + opts.expiresIn * 1000).toISOString();
     store.google.email = email;
+    store.google.last_error = null;
     return store;
   });
 }
@@ -290,7 +372,7 @@ export async function saveOAuthTokens(opts: {
 export async function disconnectGoogle(): Promise<void> {
   const store = await getStore();
   const token = store.google.refresh_token || store.google.access_token;
-  if (token && !isMockCalendar()) {
+  if (token && !isMockCalendar() && !looksLikeMockAccount(store.google)) {
     await revokeGoogleToken(token);
   }
   await updateStore((current) => {

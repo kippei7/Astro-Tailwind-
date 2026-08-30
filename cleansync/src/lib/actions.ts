@@ -9,6 +9,7 @@ import {
   deleteCalendarEvent,
   disconnectGoogle,
   markCalendarEventDone,
+  needsCalendarPush,
   updateCalendarEventDate,
 } from "./gcal";
 import { isoNow, todayYmd } from "./dates";
@@ -334,11 +335,11 @@ export async function disconnectGoogleAction() {
   redirect("/settings?gcal=disconnected");
 }
 
-export async function pushUnsyncedEventsAction() {
+export async function pushUnsyncedEvents(): Promise<number> {
   const store = await getStore();
   let pushed = 0;
   for (const event of store.task_events) {
-    if (event.gcal_event_id || event.status === "CANCELLED") continue;
+    if (!needsCalendarPush(event)) continue;
     const view = hydrateEvent(store, event);
     if (!view) continue;
     const id = await createCalendarEvent({
@@ -361,6 +362,11 @@ export async function pushUnsyncedEventsAction() {
       return current;
     });
   }
+  return pushed;
+}
+
+export async function pushUnsyncedEventsAction() {
+  const pushed = await pushUnsyncedEvents();
   refresh();
   return { pushed };
 }

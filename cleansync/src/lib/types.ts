@@ -33,7 +33,7 @@ export type TaskEvent = {
   reschedule_count: number;
 };
 
-export type GcalSyncAction = "create" | "done" | "reschedule" | "delete";
+export type GcalSyncAction = "create" | "done" | "reschedule" | "delete" | "refresh";
 
 export type GcalSyncEntry = {
   at: string;
@@ -42,6 +42,8 @@ export type GcalSyncEntry = {
   title?: string;
   date?: string;
   mock?: boolean;
+  ok?: boolean;
+  error?: string;
 };
 
 export type GoogleAccount = {
@@ -50,6 +52,7 @@ export type GoogleAccount = {
   access_token: string | null;
   refresh_token: string | null;
   expiry: string | null;
+  last_error: string | null;
   sync_log: GcalSyncEntry[];
 };
 
@@ -68,6 +71,7 @@ export function emptyGoogleAccount(): GoogleAccount {
     access_token: null,
     refresh_token: null,
     expiry: null,
+    last_error: null,
     sync_log: [],
   };
 }

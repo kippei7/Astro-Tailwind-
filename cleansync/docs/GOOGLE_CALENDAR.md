@@ -24,11 +24,15 @@
 5. `cleansync/.env.local` に入れる。
 
 ```
-GOOGLE_CALENDAR_CLIENT_ID=...
-GOOGLE_CALENDAR_CLIENT_SECRET=...
+GOOGLE_CALENDAR_CLIENT_ID=123456789012-xxxx.apps.googleusercontent.com
+GOOGLE_CALENDAR_CLIENT_SECRET=GOCSPX-...
 GOOGLE_CALENDAR_REDIRECT_URI=http://localhost:3000/api/gcal/callback
 ```
 
-6. 設定画面の「Googleカレンダーを接続」を押す。
+`GOOGLE_CALENDAR_CLIENT_ID` は **Client ID 本体** です。Cloud Console のクライアント詳細ページ URL（`https://console.cloud.google.com/auth/clients/...`）を貼らないでください。アプリ側でも URL から ID を抽出しますが、最初から ID だけ入れる方が確実です。
 
-資格情報が用意できるまでの動作確認には `GCAL_MOCK=1` を使います。接続すると同期ログが残り、`gcal_event_id` にモック ID が保存されます。
+6. OAuth 同意画面が **テスト** のときは、使う Gmail をテストユーザーに追加する。
+7. リダイレクト URI は一字一句一致させる（`localhost` と `127.0.0.1` は別物）。
+8. 設定画面の「Googleカレンダーを接続」を押す。接続後、モック ID だけの既存予定も本物のカレンダーへ送ります。
+
+`GCAL_MOCK=1` のデモ接続は本物のカレンダーには書き込みません。モックのまま資格情報を入れても同期されません。設定に「モック接続のまま」と出たら、連携を解除してから本物の Google で再接続してください。
