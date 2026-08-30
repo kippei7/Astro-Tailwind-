@@ -8,6 +8,7 @@ import {
   refreshAccessToken,
   revokeGoogleToken,
 } from "./gcal-oauth";
+import { hydrateEvent } from "./queries";
 import { getStore, updateStore } from "./store";
 import {
   emptyGoogleAccount,
@@ -379,4 +380,34 @@ export async function disconnectGoogle(): Promise<void> {
     current.google = emptyGoogleAccount();
     return current;
   });
+}
+
+export async function pushUnsyncedEvents(): Promise<number> {
+  const store = await getStore();
+  let pushed = 0;
+  for (const event of store.task_events) {
+    if (!needsCalendarPush(event)) continue;
+    const view = hydrateEvent(store, event);
+    if (!view) continue;
+    const id = await createCalendarEvent({
+      title:
+        event.status === "DONE"
+          ? `${DONE_PREFIX}${view.area.name} / ${view.master.name}`
+          : `${view.area.name} / ${view.master.name}`,
+      date: event.scheduled_date,
+      description: `${view.assignee.name} 担当\n${view.master.description}`,
+      colorId: event.status === "DONE" ? DONE_COLOR_ID : colorForAssignee(view.assignee),
+    });
+    if (!id) continue;
+    pushed += 1;
+    if (event.status === "DONE") {
+      await markCalendarEventDone(id, `${view.area.name} / ${view.master.name}`);
+    }
+    await updateStore((current) => {
+      const target = current.task_events.find((item) => item.id === event.id);
+      if (target) target.gcal_event_id = id;
+      return current;
+    });
+  }
+  return pushed;
 }

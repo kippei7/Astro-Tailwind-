@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { pushUnsyncedEvents } from "@/lib/actions";
-import { recordGoogleSyncError, saveOAuthTokens } from "@/lib/gcal";
+import { pushUnsyncedEvents, recordGoogleSyncError, saveOAuthTokens } from "@/lib/gcal";
 import { exchangeCodeForTokens, oauthRedirectUri } from "@/lib/gcal-oauth";
 
 export async function GET(request: Request) {

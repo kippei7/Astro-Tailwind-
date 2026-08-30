@@ -9,7 +9,7 @@ import {
   deleteCalendarEvent,
   disconnectGoogle,
   markCalendarEventDone,
-  needsCalendarPush,
+  pushUnsyncedEvents,
   updateCalendarEventDate,
 } from "./gcal";
 import { isoNow, todayYmd } from "./dates";
@@ -333,36 +333,6 @@ export async function disconnectGoogleAction() {
   await disconnectGoogle();
   refresh();
   redirect("/settings?gcal=disconnected");
-}
-
-export async function pushUnsyncedEvents(): Promise<number> {
-  const store = await getStore();
-  let pushed = 0;
-  for (const event of store.task_events) {
-    if (!needsCalendarPush(event)) continue;
-    const view = hydrateEvent(store, event);
-    if (!view) continue;
-    const id = await createCalendarEvent({
-      title:
-        event.status === "DONE"
-          ? `【済】${view.area.name} / ${view.master.name}`
-          : `${view.area.name} / ${view.master.name}`,
-      date: event.scheduled_date,
-      description: `${view.assignee.name} 担当\n${view.master.description}`,
-      colorId: event.status === "DONE" ? "8" : colorForAssignee(view.assignee),
-    });
-    if (!id) continue;
-    pushed += 1;
-    if (event.status === "DONE") {
-      await markCalendarEventDone(id, `${view.area.name} / ${view.master.name}`);
-    }
-    await updateStore((current) => {
-      const target = current.task_events.find((item) => item.id === event.id);
-      if (target) target.gcal_event_id = id;
-      return current;
-    });
-  }
-  return pushed;
 }
 
 export async function pushUnsyncedEventsAction() {
