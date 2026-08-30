@@ -124,7 +124,7 @@ export default async function SettingsPage({
         />
         <StatusRow
           label="未同期の予定"
-          value={connected || leftoverMock ? `${unsynced} 件` : "—"}
+          value={`${unsynced} 件`}
           ok={connected && unsynced === 0}
         />
 
